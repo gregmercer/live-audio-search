@@ -1,0 +1,26 @@
+{
+  "name": "live-audio-transcript",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:search": "node test/test-search.js",
+    "test:integration": "node test/verify-integration.js",
+    "test:debug": "node test/debug-search.js",
+    "test:grounding": "node test/test-grounding.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.15.0",
+    "@lit/context": "^1.1.5",
+    "dotenv": "^17.2.3",
+    "lit": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

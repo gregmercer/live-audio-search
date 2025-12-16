@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Chat with Web Search Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+        }
+
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .instructions {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4a90e2;
+        }
+
+        .test-queries {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .query-item {
+            margin: 10px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 3px;
+            border-left: 3px solid #28a745;
+        }
+
+        #app {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 600px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="test-container">
+        <h1>🎤 Audio Chat with Web Search Integration Test</h1>
+
+        <div class="instructions">
+            <h3>✅ Web Search is Now Enabled!</h3>
+            <p>Your audio chat now has access to real-time information through Google Search. The AI can answer
+                questions about:</p>
+            <ul>
+                <li>Current events and news</li>
+                <li>Weather conditions</li>
+                <li>Stock prices</li>
+                <li>Sports results</li>
+                <li>Recent developments</li>
+            </ul>
+        </div>
+
+        <div class="test-queries">
+            <h3>🗣️ Try These Voice Queries:</h3>
+            <div class="query-item">"What are today's headlines?"</div>
+            <div class="query-item">"Who won the Euro 2024?"</div>
+            <div class="query-item">"What's the weather in New York today?"</div>
+            <div class="query-item">"What's the current price of Apple stock?"</div>
+            <div class="query-item">"What are the latest tech news?"</div>
+        </div>
+
+        <div id="app">
+            <!-- Your audio component will load here -->
+        </div>
+    </div>
+
+    <script type="module">
+        // Import and initialize your audio component
+        import './index.tsx';
+
+        // Add the component to the page
+        const app = document.getElementById('app');
+        const audioComponent = document.createElement('gdm-live-audio');
+        app.appendChild(audioComponent);
+
+        console.log('🔍 Audio Chat with Web Search loaded!');
+        console.log('Environment check:', {
+            hasGeminiKey: !!process.env.GEMINI_API_KEY,
+            keyLength: process.env.GEMINI_API_KEY?.length || 0
+        });
+    </script>
+</body>
+
+</html>

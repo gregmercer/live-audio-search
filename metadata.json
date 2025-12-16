@@ -1,0 +1,8 @@
+{
+  "name": "Live Audio Transcript",
+  "description": "A simple voice interface that transcribes your speech and the model's response in real-time.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
