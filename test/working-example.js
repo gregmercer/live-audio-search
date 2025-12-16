@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 // WORKING EXAMPLE - Copy this exact pattern
 async function workingWebSearch() {
     // Replace with your API key
-    const apiKey = "AIzaSyCKvaDDiYKmbzaSWsQI1wtqAKGchFeUbwQ";
+    const apiKey = "asdfasdf";
 
     const ai = new GoogleGenAI({ apiKey });
 
