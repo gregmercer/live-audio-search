@@ -12,6 +12,12 @@ import { createBlob, decode, decodeAudioData } from './utils';
 interface LogEntry {
   source: 'user' | 'model';
   text: string;
+  mapData?: {
+    location: string;
+    lat?: number;
+    lng?: number;
+    zoom?: number;
+  };
 }
 
 @customElement('gdm-live-audio')
@@ -84,6 +90,10 @@ export class GdmLiveAudio extends LitElement {
       font-size: 1.1rem;
     }
 
+    .log-entry.model {
+      max-width: 90%;
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -101,6 +111,23 @@ export class GdmLiveAudio extends LitElement {
       background: #2c2c2c;
       color: #e0e0e0;
       border-bottom-left-radius: 4px;
+    }
+
+    .map-container {
+      margin-top: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+      height: 600px;
+      min-width: 50vw;
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #444;
+    }
+
+    .map-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
 
     .controls {
@@ -202,7 +229,7 @@ export class GdmLiveAudio extends LitElement {
         callbacks: {
           onopen: () => {
             this.updateStatus('Connected');
-            this.addLog('model', 'Hello! I can help with current events, weather, news, and more. I have access to real-time information.');
+            this.addLog('model', 'Hello! I can help with current events, weather, news, maps, and more. I have access to real-time information and can show you interactive maps when you ask about locations.');
           },
           onmessage: async (message: LiveServerMessage) => {
             // Handle Audio
@@ -238,6 +265,28 @@ export class GdmLiveAudio extends LitElement {
             const outputTrans = message.serverContent?.outputTranscription;
             if (outputTrans) {
               this.updateLastLog('model', outputTrans.text);
+
+              // Only check for locations when we have a complete sentence and no map data yet
+              const lastLog = this.logs[this.logs.length - 1];
+              if (lastLog && lastLog.source === 'model' && !lastLog.mapData &&
+                (lastLog.text.endsWith('.') || lastLog.text.endsWith('!') || lastLog.text.endsWith('?'))) {
+
+                // Wait a bit to ensure we have the complete response
+                setTimeout(async () => {
+                  const currentLastLog = this.logs[this.logs.length - 1];
+                  if (currentLastLog && !currentLastLog.mapData) {
+                    const mapData = await this.extractMapData(currentLastLog.text);
+                    if (mapData) {
+                      const updatedLogs = [...this.logs];
+                      updatedLogs[updatedLogs.length - 1] = {
+                        ...currentLastLog,
+                        mapData: mapData
+                      };
+                      this.logs = updatedLogs;
+                    }
+                  }
+                }, 500); // Wait 500ms for response to complete
+              }
             }
 
             // Handle Interruptions
@@ -259,6 +308,11 @@ export class GdmLiveAudio extends LitElement {
         },
         config: {
           responseModalities: [Modality.AUDIO],
+          systemInstruction: {
+            parts: [{
+              text: "You are an AI assistant with access to Google Search, Google Maps, and code execution. When users ask about locations, ALWAYS include the complete, specific location name in your response. Use formats like: 'Stanford University is located in Stanford, California' or 'The Eiffel Tower is located in Paris, France' or 'Times Square is located in New York City, New York'. Always mention the full place name and city/state/country so maps can be displayed automatically."
+            }]
+          },
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Orus' } },
           },
@@ -266,6 +320,10 @@ export class GdmLiveAudio extends LitElement {
           outputAudioTranscription: {},
           tools: [{
             googleSearch: {}
+          }, {
+            codeExecution: {}
+          }, {
+            googleMaps: {}
           }]
         },
       });
@@ -277,6 +335,175 @@ export class GdmLiveAudio extends LitElement {
 
   private addLog(source: 'user' | 'model', text: string) {
     this.logs = [...this.logs, { source, text }];
+  }
+
+  private addLogWithMap(source: 'user' | 'model', text: string, mapData: any) {
+    this.logs = [...this.logs, { source, text, mapData }];
+  }
+
+  private async extractMapData(text: string): Promise<any> {
+    console.log('Extracting map data from:', text);
+
+    // First try AI-powered coordinate extraction
+    const aiCoords = await this.getCoordinatesFromAI(text);
+    if (aiCoords) {
+      return aiCoords;
+    }
+
+    // More specific and accurate location patterns (ordered by specificity)
+    const locationPatterns = [
+      // Famous landmarks and parks (most specific first)
+      /(Golden Gate Park|Golden Gate Bridge|Eiffel Tower|Statue of Liberty|Times Square|Central Park|Hollywood Sign|Space Needle|Empire State Building|Big Ben|Tower Bridge|Sydney Opera House)/i,
+
+      // Stanford specific patterns (most specific first)
+      /(Stanford Graduate School of Business|Stanford GSB|Stanford University|Stanford Business School)/i,
+
+      // Other universities with full names
+      /(Harvard University|MIT|University of California|Yale University|Princeton University|Columbia University)/i,
+
+      // General university/school patterns
+      /([A-Z][a-zA-Z\s]+(?:University|College|Graduate School|Business School|School of Business))/i,
+
+      // City, State/Country patterns (less specific - moved to end)
+      /(?:in|at|located in|near)\s+([A-Z][a-zA-Z\s]+,\s*[A-Z][a-zA-Z\s]+)/i,
+
+      // Specific addresses or places
+      /(?:located at|address is|situated at)\s+([^.!?]+)/i,
+
+      // Campus/University patterns
+      /([A-Z][a-zA-Z\s]+\s+(?:University|College|Campus|School))/i,
+
+      // General city/place names
+      /(?:in|at|near)\s+([A-Z][a-zA-Z\s]{3,25})/i,
+    ];
+
+    for (let i = 0; i < locationPatterns.length; i++) {
+      const pattern = locationPatterns[i];
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        let location = match[1].trim();
+
+        // Clean up the location string
+        location = location.replace(/[.!?]+$/, ''); // Remove trailing punctuation
+        location = location.replace(/\s+/g, ' '); // Normalize spaces
+
+        // Filter out very short, generic, or invalid matches
+        const invalidWords = /^(the|and|or|but|with|for|from|this|that|it|is|are|was|were|a|an)$/i;
+        if (location.length > 2 && !invalidWords.test(location)) {
+          console.log(`Pattern ${i} matched:`, location);
+
+          // Set appropriate zoom level based on location type
+          let zoom = 15; // default
+          let zoomReason = 'default';
+
+          if (location.match(/University|College|Campus|Graduate School|Business School|School of Business|GSB/i)) {
+            zoom = 17; // Close zoom for campuses
+            zoomReason = 'campus/university';
+          } else if (location.match(/Park|Garden|Bridge|Tower|Building|Museum|Library/i)) {
+            zoom = 16; // Medium-close zoom for landmarks
+            zoomReason = 'landmark/park';
+          } else if (location.match(/City|Town|Village/i)) {
+            zoom = 13; // Wider zoom for cities
+            zoomReason = 'city/town';
+          } else if (location.match(/,/)) {
+            // City, State format - medium zoom
+            zoom = 14;
+            zoomReason = 'city, state';
+          }
+
+          console.log(`🗺️ Location: "${location}" | Zoom: ${zoom} (${zoomReason})`);
+
+          return {
+            location: location,
+            zoom: zoom
+          };
+        }
+      }
+    }
+
+    // Check for coordinate patterns
+    const coordPattern = /(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/;
+    const coordMatch = text.match(coordPattern);
+    if (coordMatch) {
+      const location = `${coordMatch[1]}, ${coordMatch[2]}`;
+      console.log('Coordinate match:', location);
+      return {
+        location: location,
+        lat: parseFloat(coordMatch[1]),
+        lng: parseFloat(coordMatch[2]),
+        zoom: 16 // Closer zoom for specific coordinates
+      };
+    }
+
+    console.log('No location match found');
+    return null;
+  }
+
+  private async getCoordinatesFromAI(text: string): Promise<any> {
+    try {
+
+      const prompt = `Extract location information from this text and return ONLY a JSON object with the following format:
+{
+  "location": "specific place name",
+  "lat": latitude_number,
+  "lng": longitude_number,
+  "zoom": zoom_level_number
+}
+
+Rules:
+- If no specific location is mentioned, return null
+- Use zoom 17 for universities/campuses/schools
+- Use zoom 16 for landmarks/parks/buildings
+- Use zoom 14 for cities
+- Use zoom 15 for other locations
+- Return the most specific location mentioned
+
+Text: "${text}"`;
+
+      // Use fetch to call Gemini API directly
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      let aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+      // Clean up the response - remove markdown code blocks if present
+      if (aiResponse) {
+        // Remove ```json and ``` markers
+        aiResponse = aiResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+        // Remove any leading/trailing whitespace
+        aiResponse = aiResponse.trim();
+        console.log('🧹 Cleaned AI response:', aiResponse);
+      }
+
+      // Try to parse the JSON response
+      if (aiResponse && aiResponse !== 'null') {
+        const parsed = JSON.parse(aiResponse);
+        if (parsed && parsed.location && parsed.lat && parsed.lng) {
+          console.log('🤖 AI extracted coordinates:', parsed);
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.log('AI coordinate extraction failed:', error);
+    }
+
+    return null;
   }
 
   private updateLastLog(source: 'user' | 'model', text: string) {
@@ -293,6 +520,24 @@ export class GdmLiveAudio extends LitElement {
       this.logs = updatedLogs;
     } else {
       this.addLog(source, text);
+    }
+  }
+
+  private updateLastLogWithMap(source: 'user' | 'model', text: string, mapData: any) {
+    if (!text) return;
+
+    const lastLog = this.logs[this.logs.length - 1];
+
+    if (lastLog && lastLog.source === source) {
+      const updatedLogs = [...this.logs];
+      updatedLogs[updatedLogs.length - 1] = {
+        ...lastLog,
+        text: lastLog.text + text,
+        mapData: mapData
+      };
+      this.logs = updatedLogs;
+    } else {
+      this.addLogWithMap(source, text, mapData);
     }
   }
 
@@ -398,6 +643,15 @@ export class GdmLiveAudio extends LitElement {
         ${this.logs.map(log => html`
           <div class="log-entry ${log.source}">
             ${log.text}
+            ${log.mapData ? html`
+              <div class="map-container">
+                <iframe
+                  class="map-iframe"
+                  src="https://www.google.com/maps/embed/v1/place?key=${process.env.GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(log.mapData.location)}&zoom=${log.mapData.zoom || 15}"
+                  allowfullscreen>
+                </iframe>
+              </div>
+            ` : ''}
           </div>
         `)}
       </div>

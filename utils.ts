@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import {Blob} from '@google/genai';
+import { Blob } from '@google/genai';
 
 function encode(bytes) {
   let binary = '';
@@ -70,4 +70,73 @@ async function decodeAudioData(
   return buffer;
 }
 
-export {createBlob, decode, decodeAudioData, encode};
+// Time grounding functions for accurate time information
+function getCurrentTime(): {
+  utc: string;
+  local: string;
+  timezone: string;
+  timestamp: number;
+  formatted: string;
+} {
+  const now = new Date();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return {
+    utc: now.toISOString(),
+    local: now.toLocaleString(),
+    timezone,
+    timestamp: now.getTime(),
+    formatted: now.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZoneName: 'short'
+    })
+  };
+}
+
+function getTimeInTimezone(timezone: string): string {
+  const now = new Date();
+  return now.toLocaleString('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  });
+}
+
+// Execute JavaScript code safely for time calculations
+function executeTimeCode(code: string): any {
+  try {
+    // Create a safe execution context with time utilities
+    const context = {
+      Date,
+      Math,
+      parseInt,
+      parseFloat,
+      getCurrentTime,
+      getTimeInTimezone,
+      console: {
+        log: (...args: any[]) => console.log('[Time Execution]:', ...args)
+      }
+    };
+
+    // Create function with limited scope
+    const func = new Function(...Object.keys(context), `return (${code})`);
+    return func(...Object.values(context));
+  } catch (error) {
+    console.error('Time code execution error:', error);
+    return { error: error.message };
+  }
+}
+
+export { createBlob, decode, decodeAudioData, encode, getCurrentTime, getTimeInTimezone, executeTimeCode };
